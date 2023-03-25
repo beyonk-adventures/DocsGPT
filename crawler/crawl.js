@@ -1,80 +1,26 @@
 import Crawler from 'crawler'
-import { rmSync, mkdirSync, writeFileSync } from 'fs'
+import { rmSync, mkdirSync, writeFileSync, existsSync } from 'fs'
 import { join } from 'path'
 import nhm from 'node-html-markdown'
 
-const { NodeHtmlMarkdown, NodeHtmlMarkdownOptions } = nhm
+const { NodeHtmlMarkdown } = nhm
 
 const sites = new Map([
   [
-    'support', {
-      baseUrl: 'https://support.beyonk.com',
-      path: 'support',
-      pages: new Map([
-        [
-          'index', {
-            name: 'index cards page',
-            locate: 'links',
-            bounds: '.kb-index--cards',
-            childType: 'category'
-          }
-        ],
-        [
-          'category', {
-            name: 'kb-categories',
-            locate: 'links',
-            bounds: '.kb-categories',
-            childType: 'article'
-          }
-        ],
-        [
-          'article', {
-            name: 'kb-categories',
-            locate: 'content',
-            bounds: '.kb-article'
-          }
-        ]
-      ])
-    },
     'blog', {
-      baseUrl: 'https://beyonk.com/blog',
-      path: 'support',
-      pages: new Map([
-        [
-          'index', {
-            name: 'index cards page',
-            locate: 'links',
-            bounds: '.kb-index--cards',
-            childType: 'category'
-          }
-        ],
-        [
-          'category', {
-            name: 'kb-categories',
-            locate: 'links',
-            bounds: '.kb-categories',
-            childType: 'article'
-          }
-        ],
-        [
-          'article', {
-            name: 'kb-categories',
-            locate: 'content',
-            bounds: '.kb-article'
-          }
-        ]
-      ])
+      path: 'content/blog',
+      sitemap: 'https://beyonk.com/_feather/sitemap-posts.xml',
+      content: '.notion-page'
+    }
+  ],
+  [
+    'support', {
+      path: 'content/support',
+      sitemap: 'https://support.beyonk.com/sitemap.xml',
+      content: '.kb-article'
     }
   ]
 ])
-
-// const sites = new Map([
-//   [
-//     'blog', {
-//       baseUrl: 'https://beyonk.com/blog',
-//     }
-//   ]
-// ])
 
 const urls = new Map()
 
@@ -84,65 +30,54 @@ const c = new Crawler({
         if (error) {
             console.log(error);
         } else {
-            const visit = new URL(res.options.uri, res.options.host).toString()
-            const url = urls.get(visit)
-            const site = sites.get(url.site)
-            const mapping = site.pages.get(url.type)
+            const url = urls.get(res.options.uri)
 
-            if (!mapping) {
-              throw new Error(`No mapping found for ${res.options.uri} (${pathname})`)
+            if (!url) {
+              throw new Error(`Unrecognised url ${res.options.uri}`)
             }
+
+            const site = sites.get(url.site)
 
             const $ = res.$
-            const focus = $(mapping.bounds)
 
-            if (mapping.locate === 'links') {
-              const links = focus.find('a')
+            if (url.isSitemap) {
+              const links = $('loc')
               $(links).each(function(i, link) {
-                const href = $(link).attr('href').split('#')[0]
-                const absolute = new URL(href, site.baseUrl)
-                if (absolute.origin === site.baseUrl) {
-                  urls.set(absolute.toString(), {
-                    processed: false,
-                    type: mapping.childType,
-                    site: url.site
-                  })
-                  c.queue(absolute.toString())
-                }
+                const href = link.children[0].data
+                urls.set(href, {
+                  processed: false,
+                  site: url.site,
+                  isSitemap: false
+                })
+                c.queue(href)
               })
+
+              return
             }
 
-            if (mapping.locate === 'content') {
-              const html = focus.html()
-              if (!html) { return }
-              const filename = new URL(visit).pathname.replaceAll('/', '_')
-              writeFileSync(`${join('html', site.path, filename)}.html`, html, 'utf-8')
-              const md = NodeHtmlMarkdown.translate(
-                html
-              )
-              writeFileSync(`${join('md', site.path, filename)}.md`, md, 'utf-8')
-            }
-            
-            urls.get(visit).processed = true
+            const html = $(site.content).html()
+            if (!html) { return }
+            const filename = new URL(res.options.uri).pathname.replaceAll('/', '_')
+            const md = NodeHtmlMarkdown.translate(html)
+            writeFileSync(`${join(site.path, filename)}.md`, md, 'utf-8')
+
+            urls.get(res.options.uri).processed = true
         }
         done()
     }
 })
 
 for (const [ id, site ] of sites.entries()) {
-  console.log(`Crawling ${site.baseUrl} to [html|md]/${site.path}`)
-
-  for (const filetype of [ 'html', 'md' ]) {
-    const output = join(filetype, site.path)
-    rmSync(output, { recursive: true })
-    mkdirSync(output, { recursive: true })
+  console.log(`Crawling ${id}`)
+  if (existsSync(site.path)) {
+    rmSync(site.path, { recursive: true })
   }
+  mkdirSync(site.path, { recursive: true })
 
-  const absolute = new URL('/', site.baseUrl)
-  urls.set(absolute.toString(), {
+  urls.set(site.sitemap, {
     processed: false,
-    type: 'index',
-    site: id
+    site: id,
+    isSitemap: true
   })
-  c.queue(site.baseUrl)
+  c.queue(site.sitemap)
 }

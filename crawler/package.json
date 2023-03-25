@@ -4,7 +4,7 @@
   "description": "",
   "main": "crawl.js",
   "scripts": {
-    "crawl": "rm -rf support && rm -rf ../scripts/inputs && node crawl.js && mv support ../scripts/inputs"
+    "crawl": "rm -rf content && rm -rf ../scripts/inputs && node crawl.js && mv content ../scripts/inputs"
   },
   "author": "",
   "license": "ISC",
