@@ -288,6 +288,7 @@ def combined_json():
     data = []
     # structure: name, language, version, description, fullName, date, docLink
     # append data from vectors_collection
+
     for index in vectors_collection.find({'user': user}):
         data.append({
             "name": index['name'],

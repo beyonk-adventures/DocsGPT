@@ -9,8 +9,8 @@ import dotenv
 dotenv.load_dotenv()
 
 # Replace 'YOUR_BOT_TOKEN' with your bot's token
-TOKEN = os.getenv("DISCORD_TOKEN")
-PREFIX = '@docsgpt '
+TOKEN = os.getenv("BOT_TOKEN")
+PREFIX = '@ai'
 BASE_API_URL = 'http://localhost:5001'
 
 intents = discord.Intents.default()
@@ -20,7 +20,7 @@ bot = commands.Bot(command_prefix=PREFIX, intents=intents)
 
 
 def split_string(input_str):
-    pattern = r'<(.*?)>'
+    pattern = r'@(.*?)'
     match = re.search(pattern, input_str)
 
     if match:
@@ -55,14 +55,28 @@ async def on_message(message):
         return
 
     content = message.content.strip()
-    prefix, content = split_string(content)
-    if prefix is None:
-        return
 
-    part_prefix = "@"
-    if part_prefix in prefix:
-        answer = await fetch_answer(content)
-        await message.channel.send(answer)
+    handle, text = content.split(' ', 1)
+
+    if handle == PREFIX:
+      answer = await fetch_answer(content)
+      await message.channel.send(answer)
+
+    # prefix, content = split_string(content)
+    # if prefix is None:
+    #     return
+
+
+    # print(prefix)
+    # if prefix == PREFIX:
+    #   print('detectred prefix')
+    #   answer = await fetch_answer(content)
+    #   await message.channel.send(answer)
+
+    # part_prefix = "@"
+    # if part_prefix in prefix:
+    #     answer = await fetch_answer(content)
+    #     await message.channel.send(answer)
 
     await bot.process_commands(message)
 

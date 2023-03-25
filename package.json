@@ -1,0 +1,11 @@
+{
+  "name": "docsgpt",
+  "version": "1.0.0",
+  "description": "<h1 align=\"center\">   DocsGPT  🦖 </h1>",
+  "main": "index.js",
+  "scripts": {
+    "start": "docker-compose build && docker-compose up"
+  },
+  "author": "",
+  "license": "MIT"
+}

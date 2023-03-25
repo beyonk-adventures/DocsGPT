@@ -1,3 +1,5 @@
+py-cpuinfo==9.0.0
+Cython==0.29.33
 aiodns==3.0.0
 aiohttp==3.8.3
 aiohttp-retry==2.8.3

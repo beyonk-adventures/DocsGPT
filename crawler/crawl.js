@@ -1,41 +1,82 @@
 import Crawler from 'crawler'
-import { convert } from 'html-to-text'
-import { existsSync, mkdirSync, writeFileSync } from 'fs'
+import { rmSync, mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
+import nhm from 'node-html-markdown'
 
-const baseUrl = 'https://support.beyonk.com'
+const { NodeHtmlMarkdown, NodeHtmlMarkdownOptions } = nhm
 
-const pages = new Map()
-pages.set('index', {
-  name: 'index cards page',
-  locate: 'links',
-  bounds: '.kb-index--cards',
-  childType: 'category'
-})
+const sites = new Map([
+  [
+    'support', {
+      baseUrl: 'https://support.beyonk.com',
+      path: 'support',
+      pages: new Map([
+        [
+          'index', {
+            name: 'index cards page',
+            locate: 'links',
+            bounds: '.kb-index--cards',
+            childType: 'category'
+          }
+        ],
+        [
+          'category', {
+            name: 'kb-categories',
+            locate: 'links',
+            bounds: '.kb-categories',
+            childType: 'article'
+          }
+        ],
+        [
+          'article', {
+            name: 'kb-categories',
+            locate: 'content',
+            bounds: '.kb-article'
+          }
+        ]
+      ])
+    },
+    'blog', {
+      baseUrl: 'https://beyonk.com/blog',
+      path: 'support',
+      pages: new Map([
+        [
+          'index', {
+            name: 'index cards page',
+            locate: 'links',
+            bounds: '.kb-index--cards',
+            childType: 'category'
+          }
+        ],
+        [
+          'category', {
+            name: 'kb-categories',
+            locate: 'links',
+            bounds: '.kb-categories',
+            childType: 'article'
+          }
+        ],
+        [
+          'article', {
+            name: 'kb-categories',
+            locate: 'content',
+            bounds: '.kb-article'
+          }
+        ]
+      ])
+    }
+  ]
+])
 
-pages.set('category', {
-  name: 'kb-categories',
-  locate: 'links',
-  bounds: '.kb-categories',
-  childType: 'article'
-})
-
-pages.set('article', {
-  name: 'kb-categories',
-  locate: 'content',
-  bounds: '.kb-article'
-})
+// const sites = new Map([
+//   [
+//     'blog', {
+//       baseUrl: 'https://beyonk.com/blog',
+//     }
+//   ]
+// ])
 
 const urls = new Map()
-urls.set('/', {
-  processed: false,
-  type: 'index'
-})
-
-const { host: sitePath } = new URL(baseUrl)
-if (!existsSync(sitePath)) {
-  mkdirSync(sitePath)
-}
 
 const c = new Crawler({
     maxConnections: 10,
@@ -43,44 +84,65 @@ const c = new Crawler({
         if (error) {
             console.log(error);
         } else {
-            const { pathname } = new URL(res.options.uri, baseUrl)
-            const page = urls.get(pathname)
-            const mapping = pages.get(page.type)
+            const visit = new URL(res.options.uri, res.options.host).toString()
+            const url = urls.get(visit)
+            const site = sites.get(url.site)
+            const mapping = site.pages.get(url.type)
 
             if (!mapping) {
               throw new Error(`No mapping found for ${res.options.uri} (${pathname})`)
             }
 
             const $ = res.$
-
             const focus = $(mapping.bounds)
 
             if (mapping.locate === 'links') {
               const links = focus.find('a')
               $(links).each(function(i, link) {
                 const href = $(link).attr('href').split('#')[0]
-                const url = new URL(href, baseUrl)
-                if (url.origin === baseUrl) {
-                  urls.set(url.pathname, {
+                const absolute = new URL(href, site.baseUrl)
+                if (absolute.origin === site.baseUrl) {
+                  urls.set(absolute.toString(), {
                     processed: false,
-                    type: mapping.childType
+                    type: mapping.childType,
+                    site: url.site
                   })
-                  c.queue(url.toString())
+                  c.queue(absolute.toString())
                 }
               })
             }
 
             if (mapping.locate === 'content') {
-              const content = convert(focus.html())
-              const filename = pathname.replaceAll('/', '_')
-              writeFileSync(join(sitePath, filename), content, 'utf-8')
+              const html = focus.html()
+              if (!html) { return }
+              const filename = new URL(visit).pathname.replaceAll('/', '_')
+              writeFileSync(`${join('html', site.path, filename)}.html`, html, 'utf-8')
+              const md = NodeHtmlMarkdown.translate(
+                html
+              )
+              writeFileSync(`${join('md', site.path, filename)}.md`, md, 'utf-8')
             }
             
-            urls.get(pathname).processed = true
-            console.log([ ...urls ])
+            urls.get(visit).processed = true
         }
         done()
     }
 })
 
-c.queue(baseUrl)
+for (const [ id, site ] of sites.entries()) {
+  console.log(`Crawling ${site.baseUrl} to [html|md]/${site.path}`)
+
+  for (const filetype of [ 'html', 'md' ]) {
+    const output = join(filetype, site.path)
+    rmSync(output, { recursive: true })
+    mkdirSync(output, { recursive: true })
+  }
+
+  const absolute = new URL('/', site.baseUrl)
+  urls.set(absolute.toString(), {
+    processed: false,
+    type: 'index',
+    site: id
+  })
+  c.queue(site.baseUrl)
+}

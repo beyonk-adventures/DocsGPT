@@ -1,0 +1,13 @@
+{
+  "name": "@docsgpt/scripts",
+  "version": "1.0.0",
+  "description": "<h1 align=\"center\">   DocsGPT  🦖 </h1>",
+  "main": "index.js",
+  "scripts": {
+    "preinstall": "source bin/activate",
+    "install": "pip install -r requirements.txt",
+    "ingest": "python ingest.py ingest"
+  },
+  "author": "",
+  "license": "MIT"
+}
